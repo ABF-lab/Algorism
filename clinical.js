@@ -278,11 +278,29 @@ export function assess(record) {
   const meta = OUTCOME_META[outcome];
   const monitoringMonths = outcome === 'urgent' ? 1 : outcome === 'refer' ? 3 : outcome === 'monitor' ? 6 : 12;
   
+  const idrsCompatible = idrsObj ? {
+    ...idrsObj,
+    score: idrsObj.total,
+    breakdown: idrsObj.components.map(c => ({
+      factor: c.name,
+      detail: c.proxied ? 'Proxied by BMI' : '',
+      points: c.points
+    }))
+  } : null;
+
+  const findings = {
+    bmi: bmiObj,
+    bp: bpObj,
+    glucose: glucoseObj,
+    idrs: idrsCompatible
+  };
+
   return {
     bmi: bmiObj,
     bp: bpObj,
     glucose: glucoseObj,
-    idrs: idrsObj,
+    idrs: idrsCompatible,
+    findings,
     outcome,
     action: outcome === 'refer' ? 'referral' : outcome, // map refer to referral for old code
     monitoringMonths,
