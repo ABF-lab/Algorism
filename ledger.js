@@ -5,6 +5,9 @@
  * Every assumption is a named, editable constant, surfaced in the UI.
  */
 
+export const SCREENING_COST_MIN_INR = 150;
+export const SCREENING_COST_MAX_INR = 250;
+
 export const ASSUMPTIONS = {
   annualBurden: {
     value: 158880,
