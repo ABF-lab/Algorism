@@ -582,7 +582,7 @@ function readingNote(res) {
 /* ----------------------------- step 4: result ----------------------------- */
 
 function stepResult(d) {
-  const a = d.assessment || assess(d);
+  const a = assess(d);
   const f = a.findings;
 
   $('#step').innerHTML = `
@@ -639,7 +639,7 @@ function finishRoutine(d, a) {
 /* ---------------------------- step 5: referral ---------------------------- */
 
 function stepReferral(d) {
-  const a = d.assessment;
+  const a = assess(d);
   d.clinicId = d.clinicId || CLINICS[0].id;
   d.scheme = d.scheme || SCHEMES[0];
 
