@@ -39,6 +39,10 @@ export async function syncNow() {
     return { success: false, error: 'Sync credentials not configured' };
   }
 
+  if (syncKey.trim().length < 10) {
+    return { success: false, error: 'Supabase API key is too short or invalid. Please copy the full anon/service_role key.' };
+  }
+
   updateStatus('Syncing…', 'info');
 
   let records = [];
