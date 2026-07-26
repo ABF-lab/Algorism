@@ -14,10 +14,15 @@
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT) || 8080;
-const ROOT = process.cwd();
+
+// Resolve against this file, not the working directory, so `node
+// /path/to/serve.mjs` works from anywhere instead of silently serving
+// whichever folder the shell happened to be in.
+const ROOT = dirname(fileURLToPath(import.meta.url));
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
