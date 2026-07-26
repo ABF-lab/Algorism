@@ -57,6 +57,18 @@ export function hasKey() {
 }
 export const hasApiKey = hasKey;
 
+export function getApiKey() {
+  return safeGet(KEYS.geminiKey);
+}
+
+export function setApiKey(val) {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(KEYS.geminiKey, val);
+    } catch {}
+  }
+}
+
 export function configuredProviders() {
   const providers = [];
   if (safeGet(KEYS.geminiKey)) providers.push('gemini');
