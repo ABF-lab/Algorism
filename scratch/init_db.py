@@ -2,19 +2,25 @@ import pg8000
 import sys
 
 def init_db():
-    print("Connecting to Supabase PostgreSQL database...")
+    print("Connecting to Supabase PostgreSQL database via Pooler...")
     conn = None
     
-    # Try port 5432 (direct) first, then 6543 (pooler)
-    for port in [5432, 6543]:
+    # Supabase pooler credentials
+    host = "aws-0-ap-southeast-1.pooler.supabase.com"
+    user = "postgres.wrzydzgyywwfffjojzko"
+    password = "9edDwwGOSQCn5EGt"
+    database = "postgres"
+    
+    # Try port 6543 (pooler) first, then 5432
+    for port in [6543, 5432]:
         try:
             print(f"Trying connection on port {port}...")
             conn = pg8000.connect(
-                user="postgres",
-                password="9edDwwGOSQCn5EGt",
-                host="db.wrzydzgyywwfffjojzko.supabase.co",
+                user=user,
+                password=password,
+                host=host,
                 port=port,
-                database="postgres"
+                database=database
             )
             print(f"Connected successfully on port {port}!")
             break
