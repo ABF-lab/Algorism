@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS = {
   centre: '',
   volunteer: '',
   language: 'ur',
-  syncUrl: '',
+  syncUrl: 'https://wrzydzgyywwfffjojzko.supabase.co',
   syncKey: '',
 };
 
