@@ -1,0 +1,238 @@
+Sehat Ledger — Master Build Prompt
+How to use this on 26 July. Do NOT paste the whole thing in one go and accept a finished app — a hackathon judges "progress made today" at 25%, and a single mega-prompt leaves no visible build trail. Feed it to the LLM phase by phase (they are numbered below). Commit after each phase with a real message. That way the git history shows genuine building, the app is identical to what you have now, and every claim you make to a judge is true.
+
+Everything below the line is the prompt. Paste the Context block first, then Phase 1, work through to Phase 8.
+
+CONTEXT BLOCK — paste this first, every session
+You are building Sehat Ledger, an offline-first Progressive Web App for a real NGO, the Active Bengaluru Foundation (ABF). It is used by volunteers at mosque-based health screening camps in Bengaluru to screen people for diabetes and hypertension, generate multilingual referrals, chase those referrals to completion, and measure the community care burden deferred — expressed in rupees of zakat preserved.
+
+The one-line thesis: community zakat funds are consumed by late-stage dialysis and cardiac care that early screening at ₹12–15 per person could have prevented. One dialysis patient costs ₹1,58,880/year in community support — the same money screens ~10,600 people. The app turns every confirmed referral into a measurable rupee figure a mosque treasurer can act on.
+
+Hard architectural constraints — do not violate these
+No build step. No framework. No bundler. No npm. Plain HTML, one CSS file, and ES modules loaded natively by the browser via <script type="module">. This is deliberate: it must be fixable by editing a file and refreshing, and deployable by git push to GitHub Pages.
+No external libraries at all. No React, no Supabase JS client, no charting library, no icon package. Everything is hand-written fetch(), DOM APIs, and inline SVG.
+Offline-first. Every screening must complete with zero connectivity. Patient data is written to localStorage first, always. The network is never in the critical path.
+The only network calls are: (a) LLM calls for vision/text, made only when a reading is captured or a button is pressed; (b) optional Supabase sync over plain REST. Both degrade gracefully to fully-local operation.
+Dark, glassmorphic UI. Black canvas, one brand yellow #FFD140 reserved strictly for primary action / selection / progress / focus. Clinical status uses a separate colour band (emerald / amber / rose) so "at risk" can never be confused with "tap this."
+This is screening, NOT diagnosis. No condition is ever named to a patient. No medication advice is ever generated. Every output routes to "see a doctor about this."
+File structure (create exactly these)
+index.html                 app shell + inline SVG icon sprite
+styles.css                 design system, ~1100 lines
+app.js                     routing, screening flow, all views, rendering
+clinical.js                pure scoring functions (IDRS, BMI, BP, glucose)
+ledger.js                  zakat preservation model
+ai.js                      LLM calls with provider failover + mock fallback
+sync.js                    Supabase sync over REST (optional)
+sw.js                      service worker, cache-first offline shell
+manifest.webmanifest       PWA manifest
+icon.svg                   app icon
+assets/                    logo + background images (I supply these)
+fonts/                     Inter variable woff2 (I supply this)
+Navigation — five views, tab-based
+Screen (new screening wizard) · Records · Follow-up · Ledger · Settings. Desktop: 248px sticky left sidebar. Mobile (≤900px): sidebar becomes a fixed bottom tab bar, and a compact top header carries the logo + avatar.
+
+PHASE 1 — Clinical engine (clinical.js)
+Pure functions only. No DOM, no network, no state. Every threshold traces to a published instrument — never invent scoring. Export everything.
+
+BMI — Asian Indian (ICMR) cut-offs, NOT standard WHO
+< 18.5   underweight   (tone: warn)
+< 23.0   normal        (tone: ok)      // note: healthy range
+< 25.0   overweight    (tone: warn)
+>= 25.0  obese         (tone: high)
+calcBMI(heightCm, weightKg) returns kg/(m²) rounded to 1 decimal, or null if either input missing. classifyBMI(bmi) returns {value, key, label, tone, note} with note "Asian Indian cut-offs (ICMR). Lower than standard WHO thresholds."
+
+Blood pressure — ACC/AHA categories
+sys>=180 OR dia>=120  crisis   critical  "Same-day medical attention. Do not send home with a routine slip."
+sys>=140 OR dia>=90   stage2   high      "Clinician review needed."
+sys>=130 OR dia>=80   stage1   warn      "Repeat reading and clinician review."
+sys>=120              elevated warn      "Recheck in 3 months."
+else                  normal   ok        "Routine recheck in 12 months."
+classifyBP(systolic, diastolic) returns null if either is 0/missing, else {systolic, diastolic, key, label, tone, action}.
+
+Capillary glucose (mg/dL)
+fasting:  >=126 diabetes/high · >=100 impaired/warn · else normal/ok
+random:   >=200 diabetes/high · >=140 raised/warn   · else normal/ok
+classifyGlucose(mgdl, fasting) returns {value, fasting, key, label, tone, note} with note "Capillary screening value. Venous confirmation required before any diagnosis."
+
+IDRS — Indian Diabetes Risk Score (Mohan et al., MDRF, 2005), 0–100
+Four components:
+
+Age: ≥50 → 30, ≥35 → 20, else 0
+Waist (cm): female thresholds 80/70, male 90/80. ≥higher → 20, ≥lower → 10, else 0
+Physical activity: vigorous 0, moderate 10, mild 20, sedentary 30 (default mild=20)
+Family history of diabetes: both parents 20, one 10, none 0
+Bands: ≥60 high/high · ≥30 moderate/warn · else low/ok.
+
+Waist fallback: if no waist measurement, derive from BMI (≥25 → 20 pts, ≥23 → 10 pts, else 0) and set proxied: true on the result. Never silently swap the input — flag it.
+
+calcIDRS({age, sex, waistCm, bmi, activity, family}) returns {total, band, label, tone, proxied, components:[{name, points, max, proxied?}]}.
+
+Overall outcome — measured vitals always dominate the questionnaire
+assess(record) runs all of the above and escalates to the highest of four outcomes:
+
+urgent  — BP crisis
+refer   — BP stage2, glucose diabetes range, or IDRS high
+monitor — BP stage1, glucose impaired, IDRS moderate, BMI obese, or already-diagnosed
+routine — nothing raised
+Escalation is monotonic (rank routine<monitor<refer<urgent; only ever raise). Collect a reasons[] array of plain-language strings for each trigger. Return {bmi, bp, glucose, idrs, outcome, reasons, ...OUTCOME_META[outcome]}.
+
+OUTCOME_META maps each outcome to {title, tone, summary, followUp, referral}:
+
+urgent: "Needs care today" / critical / referral+followUp true
+refer: "Refer to clinician" / high / referral+followUp true
+monitor: "Monitor" / warn / both false
+routine: "Routine recheck" / ok / both false
+Ramadan fasting risk — IDF-DAR categories
+fastingRisk(record, assessment) returns null unless the person is diabetic (known or glucose in diabetes range). Otherwise grades veryhigh/high/moderate from: on insulin, glucose ≥300, hypo history, CKD (→ veryhigh); sulfonylurea, age ≥70 (→ high). Returns {level, factors[], label, tone, guidance, disclaimer}. Disclaimer must state: clinical guidance only, grounded in IDF-DAR; religious rulings on exemption rest with a qualified scholar, not the app.
+
+Write a small test harness (Node, --input-type=module) asserting: BMI 170/70 = 24.2 and classifies overweight; BP 185/125 = crisis; IDRS max case (age55/waist95/sedentary/both) = 100; measured BP crisis beats a low questionnaire. This proves the engine before any UI exists.
+
+PHASE 2 — Zakat ledger model (ledger.js)
+Every assumption is a named, editable constant, surfaced in the UI later. Two are observed from ABF field data; three are conservative assumptions, labelled as such.
+
+ASSUMPTIONS = {
+  annualBurden:       { value: 158880, unit: '₹/year', observed: true,
+                        label: 'Annual support per dialysis patient',
+                        source: 'ABF committee disbursement records, Bengaluru, 2026' },
+  screeningCost:      { value: 15, unit: '₹', observed: true,
+                        label: 'Consumables per screening',
+                        source: 'ABF field costing. Range ₹12–15; upper bound used.' },
+  progressionHigh:    { value: 0.020, observed: false,
+                        label: 'Annual progression to high-cost complication, high risk' },
+  progressionModerate:{ value: 0.008, observed: false,
+                        label: 'Annual progression, moderate risk' },
+  interventionEffect: { value: 0.50, observed: false,
+                        label: 'Share of progression averted by early management' }
+}
+Deferred per confirmed case = annualBurden × P(progression/yr) × interventionEffect, using progressionHigh for outcomes urgent/refer, progressionModerate for monitor, 0 otherwise. Single-year horizon only — do not multiply across years; that would quintuple every figure and collapse under scrutiny.
+
+The load-bearing rule: ledger credit is written only when a referral's status is confirmed (i.e. the follow-up agent confirmed the person reached a doctor). A referral merely issued is never counted. Track pending referrals and their potential value separately.
+
+computeLedger(records, overrides) returns: screened, flagged, referralsIssued, referralsConfirmed, pendingFollowUp, completionRate, byOutcome{}, spend (=screened×cost), deferred (confirmed only), deferredPending, dialysisYearsEquivalent (=deferred/annualBurden), screeningsFundedByOneDialysisYear (=round(annualBurden/cost)), assumptions.
+
+Add formatINR (Indian grouping, e.g. ₹1,58,880) and formatCompactINR (₹1.5 L / ₹2 Cr). getAssumptions(overrides) merges saved overrides over defaults.
+
+Test: one dialysis year ÷ ₹15 = 10,592 screenings; per-high-risk-case = ₹1,588.80; exactly 100 confirmed high-risk cases = one dialysis year; pending referrals excluded from deferred.
+
+PHASE 3 — AI layer (ai.js)
+Three model capabilities, each with a deterministic mock fallback and multi-provider failover. Structured JSON output throughout.
+
+Providers & routing
+Primary: Google Gemini (gemini-flash-latest), REST: POST generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=… with responseSchema and responseMimeType: application/json.
+Fallback: OpenRouter (OpenAI-compatible, openrouter.ai/api/v1/chat/completions), free vision models. Convert Gemini parts to OpenAI content blocks (text / image_url data-URI). Use response_format: json_object plus the schema described in the system prompt.
+callModel({parts, schema, system, temperature}) tries providers in configured order (default gemini,openrouter). Move to the next provider only on rate-limit/transient errors (429/503/500, or /quota|rate.?limit|exhausted|overloaded/). A genuine bad request fails fast. If every provider is exhausted or unconfigured, the caller falls to a mock.
+Keys in localStorage: sl.apiKey/sl.model (Gemini), sl.orKey/sl.orModel (OpenRouter). configuredProviders() returns those with keys.
+listOpenRouterModels() queries /models and filters to free + image-capable — never hardcode a model list, names churn.
+testConnection() (Gemini) and listModels() for the Settings connection test.
+1. readDeviceScreen(base64, mime) — vision
+System prompt: reads numeric displays on glucometers (single number, mg/dL in India), BP monitors (larger=systolic over diastolic, plus pulse), digital scales. Report only digits actually visible — never infer, never complete a partial number, never guess a plausible clinical value. If blurred/glare/angled/off, set confidence low and leave numeric fields null. A refusal is safer than a wrong vital. Schema: {deviceType, glucose?, systolic?, diastolic?, pulse?, weightKg?, unit?, confidence, note}. Mock returns a labelled simulated glucometer or BP reading.
+
+2. generateReferral({record, assessment, language, facility, scheme}) — multilingual slip
+System prompt: writes referral slips for people with limited literacy, read once at home. NEVER name a diagnosis, NEVER mention/adjust medication. Short everyday sentences. Direct about urgency without alarm. Diet advice specific to how people here eat (rice, chapati, sweet tea, biryani, dates/sherbet at iftar) — "reduce carbohydrate intake" is banned. Write in the target language and its own script. Schema: {headline, body, whatToSay (exact words for the clinic desk), dietNote, urgencyNote?, englishGloss}. Mock returns a labelled simulated slip.
+
+3. followUpTurn({record, assessment, thread, language, facility, scheme, dayIndex}) — the agent
+System prompt: contacts the patient a few days post-referral. Never diagnoses, never prescribes. Never repeats a reminder — if they haven't gone, find the specific obstacle and address it. Assume a practical barrier (work, timing, cost, location, fear) before apathy. Warm, brief, WhatsApp register, their language. Stop if asked. After two unanswered messages, escalate to the volunteer. Schema: {barrier (enum), reply, englishGloss, action (await_reply|resolve_barrier|escalate_to_volunteer|mark_confirmed|stop), actionDetail, referralStatus (pending|confirmed|declined)}. Barriers enum: went, location_unknown, timing_conflict, cost_concern, transport, low_severity, fear, no_response, declined, unclear. Mock branches on keywords in the last patient message (work→timing, money→cost, where→location, "went"→confirmed, etc.).
+
+Every function: on NO_KEY return the mock silently; on real error return the mock with an error field and set status. Expose AI_STATUS, getLastStatus(), getLastProvider(), hasKey(), BARRIERS.
+
+PHASE 4 — Design system (styles.css)
+Dark glassmorphic. Self-hosted Inter variable font (@font-face, weights 100–900, fonts/inter.woff2). Script languages fall back to a Noto/Nirmala stack.
+
+Tokens
+--yellow #FFD140  --yellow-hover #FFDC6B  --yellow-press #F0C338  --on-yellow #111
+--coral #EF5A2B
+--bg #0A0A0B  --sidebar #0E0E10  --card #131315  --field #0C0C0E
+--text #FFF  --text-2 rgba(255,255,255,.62)  --text-3 .50  --text-4 .32
+lines: --line .07  --line-2 .10  --divider .06  --hover .05   (all rgba white)
+accent bg rgba(255,209,64,.12)  accent border .30  focus-ring 0 0 0 3px rgba(255,209,64,.15)
+glow: 0 0 30px -8px rgba(255,209,64,.55)
+clinical: --ok #34D8A0  --warn #FB923C  --high #FB7185  --critical #FFE4E9 (on rgba(244,63,94,…))
+  each with matching -bg (~.11 alpha) and -bd (~.24 alpha)
+--h-control 44px  --r-control 10px  --r-card 14px
+--ease cubic-bezier(.32,.72,0,1)  --ease-out cubic-bezier(.16,1,.3,1)  --t 180ms
+Layout & components
+.app grid 248px 1fr, min-height 100dvh. .backdrop = fixed element (NOT a body background — background-attachment:fixed breaks on Chrome Android), layering gold radial (upper-left) + teal radial (lower-right) + dark readability wash + url(assets/bg.jpg) cover. Separate portrait backdrop (assets/bg-mobile.jpg) under 900px.
+Sidebar: translucent rgba(12,12,14,.72) + backdrop-filter: blur(24px). Nav items 44px, radius 10; active = yellow-tinted gradient + glow + 3px left indicator bar. Profile block pinned bottom (margin-top:auto).
+Content column max-width 720px, centred, padding: 32px 32px 120px.
+Page title h1 26px/700, subtitle 14px muted, 28px to stepper.
+Stepper (screening): numbered circles 28px, connectors 2px centred on circles, max-width 520px. Current = yellow ring + glow (breathing pulse); done = filled yellow + check + glow; upcoming = grey.
+Cards #131315, radius 14, padding 20, subtle top-lit gradient + specular top hairline + resting yellow glow (phones have no hover) + hover lift + :focus-within edge glow. Card header: h2 15/600, subtitle 13 muted, 18px to content.
+Controls all exactly 44px: inputs/selects radius 10, #0C0C0E, focus = yellow border + focus-ring. Segmented control = pill, 44px shell, selected segment = glossy yellow gradient with bevel. iOS-style toggle 44×26, knob 20, yellow when on. Labels 12px/500 muted, 6px above.
+Primary button 46px, min-width 160, Apple-glass finish: white gloss layer hard-stopping at 52% over a 4-stop yellow body, top+bottom bevel via inset shadows, colour spill glow, specular sweep animation on hover, inverted bevel on press. Secondary = frosted glass. Right-aligned action row (not full-width) on desktop; full-width on mobile.
+Referral slip is the one LIGHT surface (#FCFAF4, dark text) — it represents printed paper. Yellow header with logo. Body uses the script-font stack; RTL for Urdu.
+Ledger hero = the one place yellow goes big: yellow-tinted glass card, 44px figure, radial glow.
+Badges, stat strip (5 cells), list rows, follow-up chat bubbles (patient = yellow, agent = glass), bottom sheets (slide-up on mobile, centred modal on desktop), toasts (yellow pill), AI status chip.
+Mobile (≤900px): sidebar → fixed bottom tab bar (60px, icon+label), compact top header appears. Inputs go to 16px (stops iOS zoom-on-focus). Action buttons min-width:0 and share the row. Toast clears the tab bar. Backdrop-filter blur removed from cards/inputs/list rows (keep only on tab bar + sheet) — each blur is a GPU pass and the target is a cheap Android; replace with ~92% opaque fills. background-attachment: scroll. Form grid → single column. Below 480px: stepper labels hidden, stat strip wraps.
+prefers-reduced-motion: kill animations. -webkit-tap-highlight-color: transparent, touch-action: manipulation, number spinners removed.
+PHASE 5 — App shell + screening flow (index.html + app.js part 1)
+Shell (index.html)
+<!doctype html>, dark theme-color, PWA meta, manifest + apple-touch-icon links, preload the font. Inline SVG sprite of Lucide-style icons (thin stroke, no fills): plus, users, message, chart, settings — plus the ones app.js needs. .backdrop div, .app grid with .sidebar (logo, 5 nav buttons with data-view, profile button) and .content (compact mobile header + .page with five <section class="view">). Toast container + sheet root at the end. <script type="module" src="app.js">.
+
+Storage & helpers (app.js)
+localStorage under sl.records (JSON array) and sl.settings. store.upsert(rec) stamps updatedAt + _dirty:true, saves, triggers a debounced sync. Helpers: $/$$, esc (HTML escape), uid, initials, toast, sheet/closeSheet, an ICON map of inline SVG strings, scrollTop() and focusField(sel,msg) (blur active element first, scroll into view, focus with preventScroll — respect reduced motion).
+
+Router
+go(view) sets aria-selected, toggles .active, scrolls to top, calls RENDER[view](). Nav buttons wired to it.
+
+Screening wizard — 4 steps, one draft object
+Steps labelled Consent · Risk factors · Measurements · Summary. Keep a draft object and step index; renderedStep tracks the last rendered step so scroll-to-top fires only on an actual step change (not on every re-render). Each step renders into cards + a pinned action row.
+
+Step 0 — Consent & identity: a consent quote box (the exact script read aloud); two toggles — Consent given for screening (blocks progress if off) and Consent to follow-up messages (optional, separate). Consent script: "We would like to check your blood pressure, blood sugar, height and weight. There is no charge. Your results are shared only with the health programme and the doctor we refer you to. You can stop at any time and you do not have to answer anything you do not want to." Then: name, mobile, age, sex (segmented M/F), centre (select), language (select: Urdu, Kannada, Hindi, Tamil, English). Validation jumps to the failing field.
+Step 1 — Risk factors: physical activity (4-way segmented), family history (3-way), waist cm (optional, hint that BMI proxy is used + flagged if blank). Existing-conditions toggle card: known diabetic, known hypertensive, insulin, sulfonylurea, tobacco.
+Step 2 — Measurements: a "Read the device" capture card (camera), then BP (sys/dia), glucose (mg/dL) + random/fasting segmented, height, weight. Camera: getUserMedia({facingMode:environment}) with live viewfinder + capture; fallback to <input capture=environment> when getUserMedia is unavailable (needed on non-HTTPS). On capture, call readDeviceScreen, show a scanning overlay, then animate the returned digits into the matching fields (.landed animation, green "filled" state). Low confidence → a "couldn't read it, enter by hand" notice.
+Step 3 — Summary/result: run assess(draft). Show an outcome hero (toned by severity), a vitals grid (BP/glucose/BMI tiles with labels), the IDRS breakdown (component bars + total badge + proxied note), a reasons list, and the Ramadan fasting card if applicable. A closing screening-not-diagnosis disclaimer. Primary button: "Generate referral" (if outcome needs one) else "Save record".
+Finish: on save, stamp outcome/idrsTotal onto the draft and upsert. If referral needed: call generateReferral with the centre's facility, render the slip (scroll it into view), set referralIssued:true, referralStatus:'pending'; if follow-up consent + phone given, mark followUpDue. Reference data: 5 CENTRES, a FACILITIES map (centre → {name, hours}), SCHEME = "Ayushman Bharat Arogya Karnataka", LANGUAGES, RTL = ['Urdu'].
+
+Binders: bindInputs (write to draft on input), bindSeg (segmented), bindSwitch (toggles), toggleRow helper.
+
+PHASE 6 — Records, Follow-up agent, Ledger, Settings (app.js part 2)
+Records view
+Search box + 4-way filter segmented (All / Flagged / Pending / In care). A 5-cell stat strip (screened, flagged, pending, in-care, urgent). List of records: avatar (initials, toned by outcome), name, age + outcome title, status badge, and a right-aligned IDRS score readout with a coloured bar. Tapping opens a detail bottom-sheet (vitals grid, meta, saved referral slip, "Open follow-up" button).
+
+Follow-up view — the agent
+Lists all issued referrals with barrier/status badges and a nav badge counting pending ones. Tapping opens a chat thread bottom-sheet: agent bubbles (glass) and patient bubbles (yellow), agent-annotation rows showing the barrier classification + action, day markers, a typing indicator. Quick-reply chips simulate patient replies (the WhatsApp API needs approval longer than a build day — demo runs the real agent logic against a simulated thread; say so). Flow: "Send day 3 message" → followUpTurn → agent reply + annotation. Patient quick-reply → next agent turn. When the agent returns referralStatus:'confirmed', write ledger credit (mark the record confirmed) and toast it. escalate_to_volunteer toasts an escalation. Two unanswered → escalate.
+
+Ledger view
+computeLedger(records, settings.assumptions). Hero card: "Community care burden deferred" label, big formatCompactINR(deferred) figure, a note that it counts only confirmed-in-care people, and a foot row: % of one dialysis year, ₹ spent on consumables, referral completion %. A 5-cell strip. A pending-referrals notice if any. An "arithmetic" card with a monospace block: annual burden ÷ screening cost = screenings, plus the line "The support for one dialysis patient for one year would screen every person across all 100 centres in the ABF network." An outcomes breakdown (bars by outcome). A projection disclaimer (single-year horizon, conservative). "Assumptions" button opens a sheet listing all five constants with Observed/Assumption badges, editable inputs, save/reset — recompute on save.
+
+Settings view
+This device: default centre, volunteer name (drives the avatar initials), default language.
+Gemini: model status chip, API key (password), model (with datalist from listModels), Save + Test connection (shows reachable models as tappable chips on model mismatch), demo-mode notice.
+Fallback provider: OpenRouter key + model, "Find free vision models" (calls listOpenRouterModels, shows tappable chips), notice that rate limits are the demo killer.
+Shared sync: status pill, an open-access warning (demo policy, seeded data only), Supabase URL + anon key, Save + Test, "Show setup SQL" sheet, "Copy device setup link".
+Data: record count, Load sample data, Export JSON, Erase all (confirm).
+About: ABF, Algorism № 001 Ummah track, clinical basis (IDRS/ICMR/ACC-AHA/IDF-DAR), screening-not-diagnosis line.
+Sample data seeder
+Generate ~52 realistic records: Muslim names (separate M/F lists), ages 26–71, height/weight by sex, vitals skewed toward the screened population (a slice hypertensive, a slice diabetic, rest normal-ish), languages, some known-diabetic/hypertensive, ~86% follow-up consent. Run assess on each to set outcome/idrsTotal. For referred ones: ~44% confirmed, ~8% declined, rest pending with a random realistic barrier. Deliberately imperfect completion — a 100% dashboard is the least believable thing you could show. Stamp updatedAt + _dirty so seeds sync. Sort newest first.
+
+Boot: updateAIChip(), updateAvatar(), wire avatar/profile → Settings, render Screen + Follow-up, register the service worker.
+
+PHASE 7 — Offline + PWA (sw.js, manifest.webmanifest, icon.svg)
+sw.js: cache-first for the app shell (list every file: html, css, all js incl. sync.js, icon, manifest, logo, both bg images, font). install → cache.addAll(SHELL) then skipWaiting; activate → delete old caches + claim; message handler for skipWaiting. fetch: never cache generativelanguage.googleapis.com or *.supabase.co; cache-first with background refresh for same-origin GETs; fall back to index.html. Bump the cache version string on every deploy. Critical: if any file in the shell list 404s, cache.addAll rejects atomically and offline dies silently — the file list must be exact.
+Self-updating worker (in app.js): register with updateViaCache:'none', call reg.update() on load, postMessage('skipWaiting') when a new worker installs, reload once on controllerchange. A cache-first worker serving yesterday's JS looks exactly like "my changes did nothing."
+manifest.webmanifest: name, short_name "Sehat Ledger", standalone, portrait, dark theme/background, icon.svg (any + maskable), shortcuts to Screen and Ledger.
+icon.svg: yellow rounded square, coral heart, yellow ECG pulse line through it.
+PHASE 8 — Shared sync (sync.js) — build last, keep optional
+Local-first sync to Supabase over plain REST (PostgREST) — no client library. Table records(id text pk, updated_at timestamptz, data jsonb).
+
+Config in localStorage (sl.sbUrl, sl.sbKey). isConfigured(), setConfig(), a listener/emit pattern, status().
+Push: POST dirty records with Prefer: resolution=merge-duplicates; clear _dirty only on success.
+Pull: GET ordered by updated_at; merge last-write-wins except a locally dirty record always beats the server (it holds unsent edits).
+syncNow({read, save}), startSync (poll every 12s + on visibilitychange + on online), stopSync. Local write always succeeds first — sync is never in the critical path.
+testConnection() (probes the table, explains 404 = run SQL, 401/403 = key/policy). SETUP_SQL string creating the table + index + RLS + an open demo policy (using(true)), surfaced in the UI with a copy button.
+Setup link: makeSetupLink() base64url-encodes {u,k,g,m,o,om} (Supabase + both AI keys) into the URL fragment (never sent to servers); applySetupLink() consumes it on boot and strips the fragment so the key doesn't linger in the address bar. includeAI:false variant omits AI keys. One tap configures a whole device.
+Honesty: the open policy means anyone with the link reads every record — fine for seeded demo data, NOT for real patients. Warn in-app. Records subtitle says "local-first, then sync"; consent script says results are shared with the programme.
+Critical wiring in app.js: the sync listener refreshes the current view on a completed pull — but guard it hard: never re-render while the screening flow is open, while an input is focused, or while a sheet is open. Re-rendering the form mid-entry destroys the user's typing and wipes a freshly generated referral slip. This is the single nastiest bug in the app; get the guard right.
+
+FINAL CHECKLIST — verify before demo
+[ ] Every screening completes in airplane mode.
+[ ] Vision capture fills fields; low-confidence refuses rather than guesses.
+[ ] Referral generates in Urdu, RTL, names clinic + scheme, no diagnosis, no medication.
+[ ] Follow-up agent identifies a barrier and offers a specific fix; ledger only moves on confirmed.
+[ ] Ledger hero shows a rupee figure counting confirmed cases only; assumptions editable.
+[ ] Sample data loads (~52 records, imperfect completion).
+[ ] Installs to home screen; service worker caches all files (no 404 in the shell list).
+[ ] Mobile: 44px controls, 16px inputs, bottom tab bar, background image visible, no page-level horizontal scroll.
+[ ] Rate limit on the primary provider fails over to the fallback, not to mock.
+[ ] Two devices with the same setup link show the same records.
+Non-negotiables the whole way through: no build step, no libraries, offline-first, screening-not-diagnosis, yellow only for action/never for clinical status, every clinical threshold traceable to a real instrument, and the ledger counts only confirmed referrals.
