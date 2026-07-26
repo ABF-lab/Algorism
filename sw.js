@@ -2,7 +2,7 @@
  * sw.js — offline app shell.
  */
 
-const CACHE = 'sehat-v3';
+const CACHE = 'sehat-v4';
 
 const SHELL = [
   './',
