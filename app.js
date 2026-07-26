@@ -14,6 +14,7 @@ import {
   readDeviceScreen, generateReferral, followUpTurn, openingMessage,
   getApiKey, setApiKey, hasApiKey, LANGUAGES, BARRIERS,
 } from './ai.js';
+import { queueSync, syncNow } from './sync.js';
 
 /* ====================================================================== *
  * Storage
@@ -31,6 +32,8 @@ const DEFAULT_SETTINGS = {
   centre: '',
   volunteer: '',
   language: 'ur',
+  syncUrl: '',
+  syncKey: '',
 };
 
 function load(key, fallback) {
@@ -59,11 +62,16 @@ const getSettings = () => ({ ...DEFAULT_SETTINGS, ...load(STORE.settings, {}) })
 const setSettings = (s) => save(STORE.settings, s);
 
 function upsertRecord(record) {
+  // Stamp last updated timestamp for sync
+  record.updatedAt = new Date().toISOString();
+  record._dirty = true;
+
   const all = getRecords();
   const i = all.findIndex((r) => r.id === record.id);
   if (i >= 0) all[i] = record; else all.unshift(record);
   setRecords(all);
   updateBadge();
+  queueSync();
   return record;
 }
 
@@ -1165,6 +1173,21 @@ function renderSettings() {
     </div>
 
     <div class="card">
+      <h3>Supabase Sync</h3>
+      <p class="small muted">Enable secure cloud sync with the shared Active Bengaluru Foundation database.</p>
+      <div class="field">
+        <label for="sync-url">Supabase Project URL</label>
+        <input id="sync-url" value="${esc(s.syncUrl || '')}" placeholder="https://your-project.supabase.co" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="sync-key">Supabase API key (service_role or anon)</label>
+        <input id="sync-key" type="password" value="${esc(s.syncKey || '')}" placeholder="eyJhbGciOi..." autocomplete="off">
+      </div>
+      ${s.lastSyncedAt ? `<p class="tiny muted" style="margin-bottom:12px;">Last synced: ${fmtDate(s.lastSyncedAt)} at ${fmtTime(s.lastSyncedAt)}</p>` : ''}
+      <button class="btn btn--primary btn--block" id="sync-btn">Sync now</button>
+    </div>
+
+    <div class="card">
       <h3>Demo data</h3>
       <p class="small muted">Anonymised sample records so the committee dashboard is legible before
         real screenings exist.</p>
@@ -1192,6 +1215,8 @@ function renderSettings() {
       centre: $('#centre').value.trim(),
       volunteer: $('#volunteer').value.trim(),
       language: $('#deflang').value,
+      syncUrl: $('#sync-url').value.trim(),
+      syncKey: $('#sync-key').value.trim(),
     });
     flash('Saved.', 'info');
   };
@@ -1199,6 +1224,30 @@ function renderSettings() {
   $('#save-key').onclick = () => {
     setApiKey($('#key').value);
     flash(hasApiKey() ? 'Key saved. Model calls are live.' : 'Key cleared. Running simulated.', 'info');
+  };
+
+  $('#sync-btn').onclick = async () => {
+    const btn = $('#sync-btn');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+    
+    // Save current fields first
+    setSettings({
+      ...getSettings(),
+      syncUrl: $('#sync-url').value.trim(),
+      syncKey: $('#sync-key').value.trim(),
+    });
+
+    const res = await syncNow();
+    btn.disabled = false;
+    btn.textContent = 'Sync now';
+
+    if (res.success) {
+      flash('Sync complete.', 'info');
+      renderSettings();
+    } else {
+      flash(`Sync failed: ${res.error}`, 'warn');
+    }
   };
 
   $('#seed').onclick = () => { seed(); flash('Sample records added.', 'info'); renderSettings(); };
@@ -1343,14 +1392,16 @@ function updateBadge() {
 }
 
 window.addEventListener('hashchange', () => { router(); updateBadge(); });
-window.addEventListener('online', updateOnlineState);
+window.addEventListener('online', () => { updateOnlineState(); queueSync(); });
 window.addEventListener('offline', updateOnlineState);
+window.addEventListener('sehat-sync-complete', () => { router(); updateBadge(); });
 
 $('#back').onclick = () => history.back();
 
 updateOnlineState();
 router();
 updateBadge();
+queueSync(); // Try to sync on load if settings exist
 
 /* Service worker. Registered last so a failure here never blocks the app. */
 if ('serviceWorker' in navigator) {
