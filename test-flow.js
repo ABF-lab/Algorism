@@ -109,7 +109,7 @@ test('step 5: the agent does not repeat itself, it resolves the barrier', async 
   const turn = await followUpTurn({ thread, language: 'en', dayNumber: 3, context: CLINIC });
 
   assert.equal(turn.simulated, true);
-  assert.equal(turn.barrier, 'cannot_take_leave', 'the agent must identify WHY, not just that they did not go');
+  assert.equal(turn.barrier, 'timing_conflict', 'the agent must identify WHY, not just that they did not go');
   assert.equal(turn.action, 'resolve_barrier');
   assert.ok(turn.reply.includes('Frazer Town'), 'it must surface the evening clinic, not repeat the reminder');
   assert.notEqual(turn.reply, opening, 'repeating the reminder is the failure mode this exists to avoid');
@@ -131,10 +131,10 @@ test('step 6: confirming attendance and medication completes the referral', asyn
 
 test('the agent classifies each barrier in the strategy table to its own remedy', async () => {
   const cases = [
-    ['I do not know where it is', 'unknown_location', /Shivajinagar/],
-    ['I cannot take a day off from work', 'cannot_take_leave', /Frazer Town/],
-    ['I could not afford it, no money', 'cost', /PM-JAY|not have to pay/],
-    ['I am fine, it is not serious', 'not_serious', /family|early/i],
+    ['I do not know where it is', 'location_unknown', /Shivajinagar/],
+    ['I cannot take a day off from work', 'timing_conflict', /Frazer Town/],
+    ['I could not afford it, no money', 'cost_concern', /PM-JAY|not have to pay/],
+    ['I am fine, it is not serious', 'low_severity', /family|early/i],
   ];
 
   for (const [reply, expectedBarrier, expectedRemedy] of cases) {

@@ -276,15 +276,30 @@ export function assess(record) {
   }
   
   const meta = OUTCOME_META[outcome];
+  const monitoringMonths = outcome === 'urgent' ? 1 : outcome === 'refer' ? 3 : outcome === 'monitor' ? 6 : 12;
+  
   return {
     bmi: bmiObj,
     bp: bpObj,
     glucose: glucoseObj,
     idrs: idrsObj,
     outcome,
+    action: outcome === 'refer' ? 'referral' : outcome, // map refer to referral for old code
+    monitoringMonths,
     reasons,
     ...meta
   };
+}
+
+export function patientSafeSummary(assessment) {
+  const outcome = assessment.outcome || assessment.action;
+  if (outcome === 'urgent') {
+    return 'Some of today’s readings are higher than expected. Please see a doctor today.';
+  } else if (outcome === 'refer' || outcome === 'referral') {
+    return 'Some of today’s readings are higher than expected. Please see a doctor about this.';
+  } else {
+    return `Today’s readings look as expected. Please come for another check in ${assessment.monitoringMonths || 12} months.`;
+  }
 }
 
 // Ramadan fasting risk

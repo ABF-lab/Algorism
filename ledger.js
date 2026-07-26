@@ -96,12 +96,6 @@ export function computeLedger(records, overrides = {}) {
         deferredPending += annualBurden * progressionHigh * interventionEffect;
       }
     } else if (outcome === 'monitor') {
-      // For monitor cases, there is no referral issued.
-      // If we want to check if they have a status, or if we assume they are always counted towards deferred.
-      // The load-bearing rule: ledger credit is written only when a referral's status is confirmed.
-      // So monitor cases do not count towards deferred unless we explicitly allow it.
-      // Wait, let's allow monitor cases to count if their status is 'confirmed'.
-      // Usually monitor cases aren't referred, so status is null/none.
       if (status === 'confirmed' || status === 'completed') {
         deferred += annualBurden * progressionModerate * interventionEffect;
       } else if (status === 'pending' || status === 'issued' || status === 'escalated') {
@@ -137,6 +131,73 @@ export function computeLedger(records, overrides = {}) {
   };
 }
 
+export function burdenDeferred(r, overrides = {}) {
+  const assumptions = getAssumptions(overrides);
+  const annualBurden = assumptions.annualBurden.value;
+  const progressionHigh = assumptions.progressionHigh.value;
+  const progressionModerate = assumptions.progressionModerate.value;
+  const interventionEffect = assumptions.interventionEffect.value;
+
+  const outcome = r.outcome || (r.assessment && r.assessment.outcome) || 'routine';
+  const status = r.referralStatus || (r.referral && r.referral.status) || null;
+
+  const isConfirmed = (status === 'confirmed' || status === 'completed');
+  
+  let inr = 0;
+  if (isConfirmed) {
+    if (outcome === 'urgent' || outcome === 'refer') {
+      inr = annualBurden * progressionHigh * interventionEffect;
+    } else if (outcome === 'monitor') {
+      inr = annualBurden * progressionModerate * interventionEffect;
+    }
+  }
+
+  inr = Math.round(inr * 100) / 100;
+
+  return {
+    inr,
+    credited: inr > 0,
+    isProjection: true
+  };
+}
+
+export function committeeLedger(records, overrides = {}) {
+  const ledger = computeLedger(records, overrides);
+  return {
+    screenings: ledger.screened,
+    highRiskIdentified: ledger.flagged,
+    referralsIssued: ledger.referralsIssued,
+    referralsCompleted: ledger.referralsConfirmed,
+    referralCompletionRate: ledger.completionRate,
+    burdenDeferredInr: ledger.deferred,
+    consumablesSpentInr: {
+      min: ledger.spend,
+      max: ledger.spend
+    },
+    screeningsEquivalent: {
+      min: ledger.screeningsFundedByOneDialysisYear,
+      max: ledger.screeningsFundedByOneDialysisYear
+    },
+    isProjection: true
+  };
+}
+
+export function dialysisComparison(overrides = {}) {
+  const assumptions = getAssumptions(overrides);
+  const annualBurden = assumptions.annualBurden.value;
+  const cost = assumptions.screeningCost.value;
+  const screenings = cost ? Math.round(annualBurden / cost) : 0;
+  return {
+    annualSupportInr: annualBurden,
+    screeningsEquivalent: { min: screenings, max: screenings },
+    networkCentres: 100,
+    perCentre: {
+      min: Math.floor(screenings / 100),
+      max: Math.floor(screenings / 100)
+    }
+  };
+}
+
 export function formatINR(val) {
   const rounded = Math.round(val || 0);
   const s = String(Math.abs(rounded));
@@ -150,6 +211,8 @@ export function formatINR(val) {
   }
   return (rounded < 0 ? '-₹' : '₹') + out;
 }
+
+export const formatInr = formatINR;
 
 export function formatCompactINR(val) {
   const num = val || 0;
