@@ -905,12 +905,18 @@ function renderFollowups() {
       ${list.map((r) => `<li><a class="list__item" href="#/thread/${esc(r.id)}">
         <div class="list__main">
           <div class="list__title">${esc(r.name || 'Not named')}</div>
-          <div class="list__sub">${esc(r.referral.clinicName)} · ${r.thread?.length ? `${r.thread.filter((m) => m.from === 'agent').length} contacts` : 'not started'}</div>
+          <div class="list__sub">${esc(r.referral.clinicName)} · ${contactCount(r)}</div>
         </div>
         ${referralBadge(r.referral.status)}
       </a></li>`).join('')}
     </ul></div>`;
   }
+}
+
+function contactCount(r) {
+  const n = (r.thread || []).filter((m) => m.from === 'agent').length;
+  if (!n) return 'not started';
+  return n === 1 ? '1 contact' : `${n} contacts`;
 }
 
 function renderThread(id) {

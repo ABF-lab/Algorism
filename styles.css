@@ -63,6 +63,15 @@
 
 * { box-sizing: border-box; }
 
+/**
+ * The hidden attribute only sets display:none in the user-agent stylesheet, so
+ * ANY author rule setting display beats it. Elements toggled via .hidden in
+ * app.js therefore stay visible. This is not defensive styling, it is a fix:
+ * without it, .camera's display:flex paints the full-screen capture overlay on
+ * top of the entire app forever.
+ */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
