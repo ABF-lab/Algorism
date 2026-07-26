@@ -411,10 +411,10 @@ h1 {
   margin-bottom: 20px;
 }
 
-.field-label {
+label, .field-label {
   display: block;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-2);
   margin-bottom: 6px;
 }
