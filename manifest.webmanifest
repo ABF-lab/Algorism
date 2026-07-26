@@ -1,0 +1,28 @@
+{
+  "name": "Sehat Ledger",
+  "short_name": "Sehat",
+  "description": "Offline-first community health screening and Zakat Preservation Ledger.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f9f7",
+  "theme_color": "#0f4c3a",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["health", "medical", "utilities"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

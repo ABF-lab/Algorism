@@ -1,0 +1,11 @@
+{
+  "name": "sehat-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline-first community screening and Zakat Preservation Ledger. Built at Algorism No. 001.",
+  "scripts": {
+    "start": "node serve.mjs",
+    "test": "node --test"
+  }
+}

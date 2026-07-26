@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f4c3a">
+<meta name="description" content="Offline-first community health screening and Zakat Preservation Ledger.">
+<title>Sehat Ledger</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Connectivity and simulation state live here so they are visible on every
+     screen. A volunteer must never be unsure whether a reading was real. -->
+<div id="statusbar" class="statusbar" role="status" aria-live="polite" hidden></div>
+
+<header class="appbar">
+  <button id="back" class="appbar__back" type="button" aria-label="Back" hidden>&#8592;</button>
+  <h1 id="title" class="appbar__title">Sehat Ledger</h1>
+  <span id="offline-dot" class="appbar__dot" title="Offline capable" aria-hidden="true"></span>
+</header>
+
+<main id="app" tabindex="-1">
+  <p class="loading">Loading&hellip;</p>
+</main>
+
+<nav class="tabbar" aria-label="Main">
+  <a class="tab" href="#/" data-tab="/">
+    <span class="tab__icon" aria-hidden="true">&#9679;</span>
+    <span class="tab__label">Screen</span>
+  </a>
+  <a class="tab" href="#/records" data-tab="/records">
+    <span class="tab__icon" aria-hidden="true">&#9776;</span>
+    <span class="tab__label">Records</span>
+  </a>
+  <a class="tab" href="#/followups" data-tab="/followups">
+    <span class="tab__icon" aria-hidden="true">&#9993;</span>
+    <span class="tab__label">Follow-up</span>
+    <span id="followup-badge" class="tab__badge" hidden></span>
+  </a>
+  <a class="tab" href="#/ledger" data-tab="/ledger">
+    <span class="tab__icon" aria-hidden="true">&#8942;</span>
+    <span class="tab__label">Ledger</span>
+  </a>
+  <a class="tab" href="#/settings" data-tab="/settings">
+    <span class="tab__icon" aria-hidden="true">&#9881;</span>
+    <span class="tab__label">Setup</span>
+  </a>
+</nav>
+
+<!-- Camera capture. Kept out of the router so the video element is never
+     re-created mid-stream. -->
+<div id="camera" class="camera" hidden>
+  <video id="camera-video" class="camera__video" playsinline muted></video>
+  <div class="camera__frame" aria-hidden="true"></div>
+  <p class="camera__hint">Fill the box with the device screen, then hold still.</p>
+  <div class="camera__actions">
+    <button id="camera-cancel" class="btn btn--ghost" type="button">Cancel</button>
+    <button id="camera-shoot" class="btn btn--primary btn--round" type="button">Capture</button>
+  </div>
+  <canvas id="camera-canvas" hidden></canvas>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

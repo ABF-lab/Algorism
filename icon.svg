@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sehat Ledger">
+  <title>Sehat Ledger</title>
+  <!-- Full-bleed background: required for the maskable purpose, where the
+       launcher may crop to a circle or squircle. All detail below is kept
+       inside the central 80% safe zone. -->
+  <rect width="512" height="512" fill="#0f4c3a"/>
+
+  <!-- Crescent, formed by subtracting one disc from another. -->
+  <path d="M256 116a140 140 0 1 0 96 241 116 116 0 1 1 0-202 139 139 0 0 0-96-39z"
+        fill="#1a7f5e" opacity=".55"/>
+
+  <!-- Pulse trace resolving into a rising line: a screening that leads
+       somewhere, rather than a reading taken and filed. -->
+  <path d="M132 268h52l26-58 34 116 30-74 22 42h40"
+        fill="none" stroke="#ffffff" stroke-width="20"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Ledger tick: the loop closing. -->
+  <path d="M316 300l30 30 58-70"
+        fill="none" stroke="#7fd3b0" stroke-width="22"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
