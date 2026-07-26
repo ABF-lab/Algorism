@@ -1,32 +1,28 @@
 /**
  * sw.js — offline app shell.
- *
- * Cache-first for the shell, because the field has no connectivity. Model calls
- * are NEVER cached: a stale vital sign is a clinical hazard.
- *
- * Bump CACHE on every deploy. A cache-first worker that serves yesterday's
- * JavaScript forever looks exactly like "my changes did nothing".
  */
 
-const CACHE = 'sehat-v2';
+const CACHE = 'sehat-v3';
 
 const SHELL = [
   './',
   './index.html',
+  './styles.css',
   './app.js',
   './clinical.js',
   './ledger.js',
   './ai.js',
-  './styles.css',
+  './sync.js',
   './manifest.webmanifest',
   './icon.svg',
+  './assets/bg.jpg',
+  './assets/bg-mobile.jpg',
+  './fonts/inter.woff2'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
-      // addAll is atomic: one 404 and nothing caches. Fetch individually so a
-      // single missing optional asset cannot break offline install.
       .then((cache) => Promise.all(
         SHELL.map((url) => cache.add(url).catch(() => {}))
       ))
@@ -49,14 +45,13 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Model calls and any other cross-origin request go straight to the network.
+  // Model calls and Supabase sync calls go straight to the network.
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.includes('generativelanguage.googleapis.com') || url.hostname.includes('supabase.co')) return;
 
   event.respondWith(
     caches.match(request).then((hit) => {
       if (hit) {
-        // Serve immediately, then refresh in the background so the next load
-        // is current without ever blocking this one.
         event.waitUntil(refresh(request));
         return hit;
       }

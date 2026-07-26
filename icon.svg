@@ -1,22 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sehat Ledger">
   <title>Sehat Ledger</title>
-  <!-- Full-bleed background: required for the maskable purpose, where the
-       launcher may crop to a circle or squircle. All detail below is kept
-       inside the central 80% safe zone. -->
-  <rect width="512" height="512" fill="#0f4c3a"/>
+  <!-- Full-bleed background: yellow #FFD140 -->
+  <rect width="512" height="512" fill="#FFD140"/>
 
-  <!-- Crescent, formed by subtracting one disc from another. -->
-  <path d="M256 116a140 140 0 1 0 96 241 116 116 0 1 1 0-202 139 139 0 0 0-96-39z"
-        fill="#1a7f5e" opacity=".55"/>
+  <!-- Coral Heart in the center (#EF5A2B) -->
+  <path d="M256 390c-60-50-130-110-130-180 0-54 42-96 96-96 32 0 60 18 74 44 14-26 42-44 74-44 54 0 96 42 96 96 0 70-70 130-130 180l-10 10-10-10z" fill="#EF5A2B"/>
 
-  <!-- Pulse trace resolving into a rising line: a screening that leads
-       somewhere, rather than a reading taken and filed. -->
-  <path d="M132 268h52l26-58 34 116 30-74 22 42h40"
-        fill="none" stroke="#ffffff" stroke-width="20"
-        stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Ledger tick: the loop closing. -->
-  <path d="M316 300l30 30 58-70"
-        fill="none" stroke="#7fd3b0" stroke-width="22"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Yellow ECG pulse line (#FFD140) overlaid -->
+  <path d="M160 220h40l20-40 25 80 20-55 15 30 10-15h40" fill="none" stroke="#FFD140" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

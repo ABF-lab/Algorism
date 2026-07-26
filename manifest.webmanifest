@@ -1,13 +1,13 @@
 {
   "name": "Sehat Ledger",
-  "short_name": "Sehat",
+  "short_name": "Sehat Ledger",
   "description": "Offline-first community health screening and Zakat Preservation Ledger.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f6f9f7",
-  "theme_color": "#0f4c3a",
+  "background_color": "#0A0A0B",
+  "theme_color": "#0A0A0B",
   "lang": "en-IN",
   "dir": "ltr",
   "categories": ["health", "medical", "utilities"],
@@ -23,6 +23,22 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Screen",
+      "short_name": "Screen",
+      "description": "Start a new screening",
+      "url": "./index.html#/",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Ledger",
+      "short_name": "Ledger",
+      "description": "View Zakat Preservation Ledger",
+      "url": "./index.html#/ledger",
+      "icons": [{ "src": "icon.svg", "sizes": "any" }]
     }
   ]
 }
