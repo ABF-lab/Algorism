@@ -8,7 +8,7 @@
  * JavaScript forever looks exactly like "my changes did nothing".
  */
 
-const CACHE = 'sehat-v1';
+const CACHE = 'sehat-v2';
 
 const SHELL = [
   './',
